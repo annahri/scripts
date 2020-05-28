@@ -138,18 +138,18 @@ cleanup() { rm -f "$config_tmp"; }
 
 trap cleanup EXIT QUIT INT
 
-eval cp "$config_path" "$config_tmp" || \
-    msg_error "Error ocurred." 10
-
 test -z "$config_path" && \
     msg_error "Config $name is not found in list." 1
 
+cp "$config_path" "$config_tmp" 2> /dev/null || \
+    msg_error "Error copying temp file. Aborting" 10
+
 $EDITOR "${config_tmp}"
 
-eval diff "$config_tmp" "$config_path" &> /dev/null && \
+diff "$config_tmp" "$config_path" &> /dev/null && \
     echo "No changes." >&2 && exit
 
-eval tee "$config_path" < "$config_tmp" > /dev/null || \
+tee "$config_path" < "$config_tmp" > /dev/null || \
     msg_error "Error ocurred." 11
 
 echo "Saving changes." >&2
