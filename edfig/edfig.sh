@@ -2,6 +2,8 @@
 # edfig.sh -- Config file manager
 # @annahri
 
+set -o nounset
+
 FILE="$HOME/.config/configs.list"
 CMD="${0##*/}"
 
@@ -46,7 +48,18 @@ config_add() {
         msg_error "Usage: $CMD add name path" 8
 
     local name="$1"
-    local path="$2"
+    local path="${2:-}"
+
+    case "$name" in
+        add|edit|rm|ls|help)
+            msg_error "Reserved name. Please use another." 1
+            ;;
+        *)
+            if [[ "${name:0:1}" =~ ^.*([!?.,])+.*$ ]]; then
+                msg_error "Cannot use ${name:0:1} as the begining of name." 1
+            fi
+            ;;
+    esac
 
     test -f "$path" || \
         msg_error "Not found: $path" 9
@@ -75,14 +88,15 @@ config_edit() {
     grep "$name" "$FILE" | tee "$tempfile" > /dev/null || \
         msg_error "Error ocurred." 2
 
+    raw="$(head -1 "$tempfile")"
+
     $EDITOR "$tempfile" || \
         msg_error "Error on $EDITOR. Aborting" 3
 
-    raw="$(head -1 "$tempfile")"
-    line="$(echo "$raw" | sed 's/"/\\"/g;s/\//\\\//g')"
-
     test "$raw" == "$(head -1 "$tempfile")" && \
         echo "No changes." >&2 && exit
+
+    line="$(sed 's/"/\\"/g;s/\//\\\//g' "$tempfile")"
 
     sed "${linenum}s/.*/$line/" "$FILE" | sponge "$FILE" || \
         msg_error "Error editing entry." 4
@@ -134,23 +148,20 @@ config_list() {
 }
 
 # Begin Script
-test -z "$1" && \
+test "$#" -eq 0 && \
     usage
 
 case "$1" in
-    add) shift; cmd="add" ;;
-    rm) shift; cmd="rm" ;;
-    edit) shift; cmd="edit" ;;
-    ls) cmd="list";;
+    add|rm|edit|ls) cmd="$1"; shift ;;
     help|-h|--help) usage;;
-    *) name="$1" ;;
+    *) cmd="-"; name="$1" ;;
 esac
 
 test "$cmd" == "add"  && \
     config_add "$@"
 
 test -s "$FILE" || \
-    mgs_error "$FILE doesn't exist or is empty. Create it and add something first.\nExample: configname = /path/to/config" 13
+    msg_error "$FILE doesn't exist or is empty. Create it and add something first.\nExample: configname = /path/to/config" 13
 
 test "$cmd" == "rm" && \
     config_rm "$@"
@@ -158,16 +169,20 @@ test "$cmd" == "rm" && \
 test "$cmd" == "edit" && \
     config_edit "$@"
 
-test "$cmd" == "list" && \
+test "$cmd" == "ls" && \
     config_list
 
 config_load
 
-config_path="${configs[$name]}"
+config_path="${configs[$name]:-}"
+
+test "$config_path" || \
+    msg_error "$name doesn't exist." 1
+
 config_file="${config_path##*/}"
 config_ext=".${config_file##*.}"
 
-if test ."$config_file" == "$config_ext"; then
+if test ."$config_file" == "$config_ext" || test "$config_file" == "$config_ext"; then
     config_tmp="$(mktemp /tmp/config-"$name"-XXXXX.tmp)"
 else
     config_tmp="$(mktemp /tmp/config-"$name"-XXXXX.tmp"${config_ext}")"
