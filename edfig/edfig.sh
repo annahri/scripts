@@ -79,7 +79,7 @@ config_edit() {
     awk '{print $1}' "$FILE" | grep -qw "$name" || \
         msg_error "Config for $name not found in $FILE" 1
 
-    tempfile=$(mktemp /tmp/config_XXXXXXX.tmp)
+    tempfile=$(mktemp /tmp/config-XXXX.tmp)
     linenum=$(grep -n "$name" "$FILE" | cut -d: -f1)
 
     cleanup() { rm -f "$tempfile"; }
@@ -109,7 +109,7 @@ config_edit() {
 }
 
 config_rm() {
-    local name="$1"
+    local name="${1:-}"
     test "$name" || \
         msg_error "What to remove?" 1
 
@@ -138,11 +138,11 @@ config_rm() {
     exit
 }
 
-config_list() {
+config_ls() {
     grep '^[^\s#]\+' "$FILE" | \
         sed 's/"//g' | \
         sort | \
-        column -s= -t -o '|' -N "CONFIG NAME , PATH "
+        column -s= -t
 
     exit
 }
@@ -152,25 +152,16 @@ test "$#" -eq 0 && \
     usage
 
 case "$1" in
-    add|rm|edit|ls) cmd="$1"; shift ;;
-    help|-h|--help) usage;;
-    *) cmd="-"; name="$1" ;;
+    add|rm|edit|ls)
+        _cmd="$1"; shift
+        config_${_cmd} "$@"
+        ;;
+    help|-h|--help) usage ;;
+    *) name="$1" ;;
 esac
-
-test "$cmd" == "add"  && \
-    config_add "$@"
 
 test -s "$FILE" || \
     msg_error "$FILE doesn't exist or is empty. Create it and add something first.\nExample: configname = /path/to/config" 13
-
-test "$cmd" == "rm" && \
-    config_rm "$@"
-
-test "$cmd" == "edit" && \
-    config_edit "$@"
-
-test "$cmd" == "ls" && \
-    config_list
 
 config_load
 
@@ -183,9 +174,9 @@ config_file="${config_path##*/}"
 config_ext=".${config_file##*.}"
 
 if test ."$config_file" == "$config_ext" || test "$config_file" == "$config_ext"; then
-    config_tmp="$(mktemp /tmp/config-"$name"-XXXXX.tmp)"
+    config_tmp="$(mktemp /tmp/config-"$name"-XX.tmp)"
 else
-    config_tmp="$(mktemp /tmp/config-"$name"-XXXXX.tmp"${config_ext}")"
+    config_tmp="$(mktemp /tmp/config-"$name"-XX.tmp"${config_ext}")"
 fi
 
 cleanup() { rm -f "$config_tmp"; }
